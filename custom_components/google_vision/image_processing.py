@@ -89,14 +89,10 @@ class Gvision(ImageProcessingEntity):
 
     def process_image(self, image):
         """Process an image."""
-        # Loads the image into memory
-        with io.open(IMG_FILE, "rb") as image_file:
-            content = image_file.read()
-        image = types.Image(content=content)
-        response = self._client.object_localization(image=image)
+        response = self._client.object_localization(image=types.Image(content=image))
         objects = response.localized_object_annotations
         _LOGGER.error("Gvision : %s", objects)
-        self._state = None
+        self._state = len(objects)
 
     @property
     def camera_entity(self):
