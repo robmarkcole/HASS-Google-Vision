@@ -7,6 +7,7 @@ import logging
 import time
 import io
 from datetime import timedelta
+from typing import Union, List, Set, Dict
 
 import voluptuous as vol
 
@@ -47,6 +48,42 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 )
 
 
+def format_confidence(confidence: Union[str, float]) -> float:
+    """Takes a confidence from the API like 
+       0.55623 and returne 55.6 (%).
+    """
+    return round(float(confidence) * 100, 1)
+
+
+def get_objects(objects: List[types.LocalizedObjectAnnotation]) -> List[str]:
+    """
+    Get a list of the unique objects predicted.
+    """
+    labels = [obj.name.lower() for obj in objects]
+    return list(set(labels))
+
+
+def get_object_confidences(objects: List[types.LocalizedObjectAnnotation], target: str):
+    """
+    Return the list of confidences of instances of target label.
+    """
+    confidences = [
+        format_confidence(obj.score) for obj in objects if obj.name.lower() == target
+    ]
+    return confidences
+
+
+def get_objects_summary(objects: List[types.LocalizedObjectAnnotation]):
+    """
+    Get a summary of the objects detected.
+    """
+    objects_labels = get_objects(objects)
+    return {
+        target: len(get_object_confidences(objects, target))
+        for target in objects_labels
+    }
+
+
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Set up platform."""
 
@@ -73,7 +110,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
 
 class Gvision(ImageProcessingEntity):
-    """Perform object recognition."""
+    """Perform object recognition with Google Vision."""
 
     def __init__(self, target, client, camera_entity, name=None):
         """Init with the client."""
@@ -83,16 +120,21 @@ class Gvision(ImageProcessingEntity):
             self._name = name
         else:
             entity_name = split_entity_id(camera_entity)[1]
-            self._name = "{} {} {}".format("google_vision", target, entity_name)
+            self._name = "{} {} {}".format("google vision", target, entity_name)
         self._camera_entity = camera_entity
         self._state = None  # The number of instances of interest
+        self._summary = {}
 
     def process_image(self, image):
         """Process an image."""
+        self._state = None
+        self._summary = {}
+
         response = self._client.object_localization(image=types.Image(content=image))
         objects = response.localized_object_annotations
-        _LOGGER.error("Gvision : %s", objects)
-        self._state = len(objects)
+
+        self._state = len(get_object_confidences(objects, self._target))
+        self._summary = get_objects_summary(objects)
 
     @property
     def camera_entity(self):
@@ -109,6 +151,7 @@ class Gvision(ImageProcessingEntity):
         """Return device specific state attributes."""
         attr = {}
         attr["target"] = self._target
+        attr["summary"] = self._summary
         return attr
 
     @property
