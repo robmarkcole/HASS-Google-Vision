@@ -5,9 +5,14 @@ import base64
 import json
 import logging
 import time
+import io
 from datetime import timedelta
 
 import voluptuous as vol
+
+from google.cloud import vision
+from google.cloud.vision import types
+from google.oauth2 import service_account
 
 from homeassistant.core import split_entity_id
 import homeassistant.helpers.config_validation as cv
@@ -43,10 +48,6 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Set up platform."""
-
-    from google.cloud import vision
-    from google.cloud.vision import types
-    from google.oauth2 import service_account
 
     # Instantiates a client
     credentials = service_account.Credentials.from_service_account_file(API_file_path)
@@ -85,6 +86,13 @@ class Gvision(ImageProcessingEntity):
 
     def process_image(self, image):
         """Process an image."""
+        # Loads the image into memory
+        with io.open(IMG_FILE, "rb") as image_file:
+            content = image_file.read()
+        image = types.Image(content=content)
+        response = self._client.object_localization(image=image)
+        objects = response.localized_object_annotations
+        _LOGGER.error("Gvision : %s", objects)
         self._state = None
 
     @property
