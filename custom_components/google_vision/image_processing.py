@@ -30,6 +30,9 @@ DEFAULT_TARGET = "person"
 EVENT_OBJECT_DETECTED = "image_processing.object_detected"
 EVENT_FILE_SAVED = "image_processing.file_saved"
 
+API_file_path = "/Users/robin/.homeassistant/Google_API_key.json"
+IMG_FILE = "/Users/robin/.homeassistant/www/images/test-image3.jpg"
+
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
         vol.Optional(CONF_TARGET, default=DEFAULT_TARGET): cv.string,
@@ -41,11 +44,25 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Set up platform."""
 
+    from google.cloud import vision
+    from google.cloud.vision import types
+    from google.oauth2 import service_account
+
+    # Instantiates a client
+    credentials = service_account.Credentials.from_service_account_file(API_file_path)
+    scoped_credentials = credentials.with_scopes(
+        ["https://www.googleapis.com/auth/cloud-platform"]
+    )
+    client = vision.ImageAnnotatorClient(credentials=scoped_credentials)
+
     entities = []
     for camera in config[CONF_SOURCE]:
         entities.append(
             Gvision(
-                config.get(CONF_TARGET), camera[CONF_ENTITY_ID], camera.get(CONF_NAME)
+                config.get(CONF_TARGET),
+                client,
+                camera[CONF_ENTITY_ID],
+                camera.get(CONF_NAME),
             )
         )
     add_devices(entities)
@@ -54,9 +71,10 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 class Gvision(ImageProcessingEntity):
     """Perform object recognition."""
 
-    def __init__(self, target, camera_entity, name=None):
+    def __init__(self, target, client, camera_entity, name=None):
         """Init with the client."""
         self._target = target
+        self._client = client
         if name:  # Since name is optional.
             self._name = name
         else:
