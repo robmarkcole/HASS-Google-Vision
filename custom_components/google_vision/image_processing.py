@@ -12,21 +12,30 @@ import voluptuous as vol
 from homeassistant.core import split_entity_id
 import homeassistant.helpers.config_validation as cv
 from homeassistant.components.image_processing import (
-    PLATFORM_SCHEMA, ImageProcessingEntity, CONF_SOURCE, CONF_ENTITY_ID,
-    CONF_NAME)
+    PLATFORM_SCHEMA,
+    ImageProcessingEntity,
+    CONF_SOURCE,
+    CONF_ENTITY_ID,
+    CONF_NAME,
+)
 
 
 _LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL = timedelta(days=365)  # SCAN ONCE THEN NEVER AGAIN.
 
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Optional(CONF_REGION, default=DEFAULT_REGION):
-        vol.In(SUPPORTED_REGIONS),
-    vol.Required(CONF_ACCESS_KEY_ID): cv.string,
-    vol.Required(CONF_SECRET_ACCESS_KEY): cv.string,
-    vol.Optional(CONF_TARGET, default=DEFAULT_TARGET): cv.string,
-})
+CONF_SAVE_FILE_FOLDER = "save_file_folder"
+CONF_TARGET = "target"
+DEFAULT_TARGET = "person"
+EVENT_OBJECT_DETECTED = "image_processing.object_detected"
+EVENT_FILE_SAVED = "image_processing.file_saved"
+
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
+    {
+        vol.Optional(CONF_TARGET, default=DEFAULT_TARGET): cv.string,
+        vol.Optional(CONF_SAVE_FILE_FOLDER): cv.isdir,
+    }
+)
 
 
 def setup_platform(hass, config, add_devices, discovery_info=None):
@@ -34,40 +43,31 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 
     entities = []
     for camera in config[CONF_SOURCE]:
-        entities.append(Rekognition(
-            client,
-            config.get(CONF_REGION),
-            config.get(CONF_TARGET),
-            camera[CONF_ENTITY_ID],
-            camera.get(CONF_NAME),
-        ))
+        entities.append(
+            Gvision(
+                config.get(CONF_TARGET), camera[CONF_ENTITY_ID], camera.get(CONF_NAME)
+            )
+        )
     add_devices(entities)
 
 
-class Rekognition(ImageProcessingEntity):
-    """Perform object and label recognition."""
+class Gvision(ImageProcessingEntity):
+    """Perform object recognition."""
 
-    def __init__(self, client, region, target, camera_entity, name=None):
+    def __init__(self, target, camera_entity, name=None):
         """Init with the client."""
-        self._client = client
-        self._region = region
         self._target = target
         if name:  # Since name is optional.
             self._name = name
         else:
             entity_name = split_entity_id(camera_entity)[1]
-            self._name = "{} {} {}".format('rekognition', target, entity_name)
+            self._name = "{} {} {}".format("google_vision", target, entity_name)
         self._camera_entity = camera_entity
         self._state = None  # The number of instances of interest
-        self._labels = {} # The parsed label data
 
     def process_image(self, image):
         """Process an image."""
         self._state = None
-        self._labels = {}
-        response = self._client.detect_labels(Image={'Bytes': image})
-        self._state = get_label_instances(response, self._target)
-        self._labels = parse_labels(response)
 
     @property
     def camera_entity(self):
@@ -82,8 +82,8 @@ class Rekognition(ImageProcessingEntity):
     @property
     def device_state_attributes(self):
         """Return device specific state attributes."""
-        attr = self._labels
-        attr['target'] = self._target
+        attr = {}
+        attr["target"] = self._target
         return attr
 
     @property

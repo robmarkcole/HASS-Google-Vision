@@ -6,3 +6,13 @@ Follow the instructions on https://cloud.google.com/docs/authentication/getting-
 
 ## Pricing
 Read pricing. The first 1000 calls are free, 0.225 cent per call after that.
+
+## Home Assistant config
+Place the `custom_components` folder in your configuration directory (or add its contents to an existing `custom_components` folder). Add to your Home-Assistant config:
+
+```yaml
+image_processing:
+  - platform: google_vision
+    source:
+      - entity_id: camera.local_file
+```
