@@ -13,6 +13,11 @@ Place the `custom_components` folder in your configuration directory (or add its
 ```yaml
 image_processing:
   - platform: google_vision
+    api_key_file: /Users/robin/.homeassistant/Google_API_key.json
     source:
       - entity_id: camera.local_file
 ```
+
+Configuration variables:
+- **api_key_file**: the path to your API key file.
+- **target**: (optional) The target object class, default `person`.

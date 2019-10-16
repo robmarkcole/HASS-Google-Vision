@@ -29,17 +29,18 @@ _LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL = timedelta(days=365)  # SCAN ONCE THEN NEVER AGAIN.
 
+CONF_API_KEY_FILE = "api_key_file"
 CONF_SAVE_FILE_FOLDER = "save_file_folder"
 CONF_TARGET = "target"
 DEFAULT_TARGET = "person"
 EVENT_OBJECT_DETECTED = "image_processing.object_detected"
 EVENT_FILE_SAVED = "image_processing.file_saved"
 
-API_file_path = "/Users/robin/.homeassistant/Google_API_key.json"
 IMG_FILE = "/Users/robin/.homeassistant/www/images/test-image3.jpg"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
+        vol.Required(CONF_API_KEY_FILE): cv.string,
         vol.Optional(CONF_TARGET, default=DEFAULT_TARGET): cv.string,
         vol.Optional(CONF_SAVE_FILE_FOLDER): cv.isdir,
     }
@@ -50,7 +51,9 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     """Set up platform."""
 
     # Instantiates a client
-    credentials = service_account.Credentials.from_service_account_file(API_file_path)
+    credentials = service_account.Credentials.from_service_account_file(
+        config.get(CONF_API_KEY_FILE)
+    )
     scoped_credentials = credentials.with_scopes(
         ["https://www.googleapis.com/auth/cloud-platform"]
     )
