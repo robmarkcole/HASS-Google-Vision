@@ -199,7 +199,6 @@ class Gvision(ImageProcessingEntity):
 
         latest_save_path = directory + "google_vision_latest_{}.jpg".format(target)
         img.save(latest_save_path)
-        self.fire_saved_file_event(latest_save_path)
 
     def fire_object_detected_events(self, objects, confidence_threshold):
         """Fire event if detection above confidence threshold."""
@@ -215,12 +214,6 @@ class Gvision(ImageProcessingEntity):
                         ATTR_CONFIDENCE: obj_confidence,
                     },
                 )
-
-    def fire_saved_file_event(self, save_path):
-        """Fire event when saving a file"""
-        self.hass.bus.fire(
-            EVENT_FILE_SAVED, {ATTR_ENTITY_ID: self.entity_id, FILE: save_path}
-        )
 
     @property
     def camera_entity(self):
@@ -252,6 +245,7 @@ class Gvision(ImageProcessingEntity):
         attr["target"] = self._target
         attr["summary"] = self._summary
         attr["confidence"] = self._confidence
+        attr["_save_file_folder"] = self._save_file_folder
         if self._last_detection:
             attr[
                 "last_{}_detection".format(self._target)
