@@ -16,11 +16,13 @@ from google.cloud.vision import types
 from google.oauth2 import service_account
 
 import homeassistant.util.dt as dt_util
+from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import split_entity_id
 import homeassistant.helpers.config_validation as cv
 from homeassistant.components.image_processing import (
     PLATFORM_SCHEMA,
     ImageProcessingEntity,
+    ATTR_CONFIDENCE,
     CONF_SOURCE,
     CONF_ENTITY_ID,
     CONF_NAME,
@@ -29,7 +31,7 @@ from homeassistant.components.image_processing import (
 
 _LOGGER = logging.getLogger(__name__)
 
-SCAN_INTERVAL = timedelta(days=365)  # SCAN ONCE THEN NEVER AGAIN.
+SCAN_INTERVAL = timedelta(days=365)  # Effectively disable scan.
 
 CONF_API_KEY_FILE = "api_key_file"
 CONF_SAVE_FILE_FOLDER = "save_file_folder"
@@ -37,8 +39,7 @@ CONF_TARGET = "target"
 DEFAULT_TARGET = "person"
 EVENT_OBJECT_DETECTED = "image_processing.object_detected"
 EVENT_FILE_SAVED = "image_processing.file_saved"
-
-IMG_FILE = "/Users/robin/.homeassistant/www/images/test-image3.jpg"
+OBJECT = "object"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -51,7 +52,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 
 def format_confidence(confidence: Union[str, float]) -> float:
     """Takes a confidence from the API like 
-       0.55623 and returne 55.6 (%).
+       0.55623 and returns 55.6 (%).
     """
     return round(float(confidence) * 100, 1)
 
@@ -116,13 +117,14 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
         ["https://www.googleapis.com/auth/cloud-platform"]
     )
     client = vision.ImageAnnotatorClient(credentials=scoped_credentials)
-
     entities = []
     for camera in config[CONF_SOURCE]:
         entities.append(
             Gvision(
                 config.get(CONF_TARGET),
                 client,
+                config.get(ATTR_CONFIDENCE),
+                config.get(CONF_SAVE_FILE_FOLDER),
                 camera[CONF_ENTITY_ID],
                 camera.get(CONF_NAME),
             )
@@ -133,10 +135,13 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
 class Gvision(ImageProcessingEntity):
     """Perform object recognition with Google Vision."""
 
-    def __init__(self, target, client, camera_entity, name=None):
+    def __init__(
+        self, target, client, confidence, save_file_folder, camera_entity, name=None
+    ):
         """Init with the client."""
         self._target = target
         self._client = client
+        self._confidence = confidence  # the confidence threshold
         if name:  # Since name is optional.
             self._name = name
         else:
@@ -146,6 +151,8 @@ class Gvision(ImageProcessingEntity):
         self._state = None  # The number of instances of interest
         self._summary = {}
         self._last_detection = None
+        if save_file_folder:
+            self._save_file_folder = save_file_folder
 
     def process_image(self, image):
         """Process an image."""
@@ -160,9 +167,30 @@ class Gvision(ImageProcessingEntity):
 
         self._state = len(get_object_confidences(objects, self._target))
         self._summary = get_objects_summary(objects)
+        self.fire_object_detected_events(objects, self._confidence)
 
         if self._state > 0:
             self._last_detection = dt_util.now()
+
+        if hasattr(self, "_save_file_folder") and self._state > 0:
+            self.save_image(
+                image, self._predictions, self._target, self._save_file_folder
+            )
+
+    def fire_object_detected_events(self, objects, confidence_threshold):
+        """Fire event if detection above confidence threshold."""
+
+        for obj in objects:
+            obj_confidence = format_confidence(obj.score)
+            if obj_confidence > confidence_threshold:
+                self.hass.bus.fire(
+                    EVENT_OBJECT_DETECTED,
+                    {
+                        ATTR_ENTITY_ID: self.entity_id,
+                        OBJECT: obj.name.lower(),
+                        ATTR_CONFIDENCE: obj_confidence,
+                    },
+                )
 
     @property
     def camera_entity(self):
@@ -193,6 +221,7 @@ class Gvision(ImageProcessingEntity):
         attr = {}
         attr["target"] = self._target
         attr["summary"] = self._summary
+        attr["confidence"] = self._confidence
         if self._last_detection:
             attr[
                 "last_{}_detection".format(self._target)
