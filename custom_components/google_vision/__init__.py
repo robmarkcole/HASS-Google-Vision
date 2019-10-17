@@ -1,1 +1,1 @@
-"""The amazon_rekognition component."""
+"""The Google Vision component."""
