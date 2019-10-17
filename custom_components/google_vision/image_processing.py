@@ -15,6 +15,7 @@ from google.cloud import vision
 from google.cloud.vision import types
 from google.oauth2 import service_account
 
+import homeassistant.util.dt as dt_util
 from homeassistant.core import split_entity_id
 import homeassistant.helpers.config_validation as cv
 from homeassistant.components.image_processing import (
@@ -53,6 +54,26 @@ def format_confidence(confidence: Union[str, float]) -> float:
        0.55623 and returne 55.6 (%).
     """
     return round(float(confidence) * 100, 1)
+
+
+def get_box(normalized_vertices: List):
+    """
+    Return the relative bounxing box coordinates
+    defined by the tuple (y_min, x_min, y_max, x_max)
+    where the coordinates are floats in the range [0.0, 1.0] and
+    relative to the width and height of the image.
+    """
+    y = []
+    x = []
+    for box in normalized_vertices:
+        y.append(box.y)
+        x.append(box.x)
+
+    box = [min(set(y)), min(set(x)), max(set(y)), max(set(x))]
+
+    rounding_decimals = 5
+    box = [round(coord, rounding_decimals) for coord in box]
+    return box
 
 
 def get_objects(objects: List[types.LocalizedObjectAnnotation]) -> List[str]:
@@ -124,6 +145,7 @@ class Gvision(ImageProcessingEntity):
         self._camera_entity = camera_entity
         self._state = None  # The number of instances of interest
         self._summary = {}
+        self._last_detection = None
 
     def process_image(self, image):
         """Process an image."""
@@ -133,8 +155,14 @@ class Gvision(ImageProcessingEntity):
         response = self._client.object_localization(image=types.Image(content=image))
         objects = response.localized_object_annotations
 
+        if not len(objects) > 0:
+            return
+
         self._state = len(get_object_confidences(objects, self._target))
         self._summary = get_objects_summary(objects)
+
+        if self._state > 0:
+            self._last_detection = dt_util.now()
 
     @property
     def camera_entity(self):
@@ -147,14 +175,26 @@ class Gvision(ImageProcessingEntity):
         return self._state
 
     @property
+    def name(self):
+        """Return the name of the sensor."""
+        return self._name
+
+    @property
+    def unit_of_measurement(self):
+        """Return the unit of measurement."""
+        target = self._target
+        if self._state != None and self._state > 1:
+            target += "s"
+        return target
+
+    @property
     def device_state_attributes(self):
         """Return device specific state attributes."""
         attr = {}
         attr["target"] = self._target
         attr["summary"] = self._summary
+        if self._last_detection:
+            attr[
+                "last_{}_detection".format(self._target)
+            ] = self._last_detection.strftime("%Y-%m-%d %H:%M:%S")
         return attr
-
-    @property
-    def name(self):
-        """Return the name of the sensor."""
-        return self._name
