@@ -6,8 +6,11 @@ import json
 import logging
 import time
 import io
+import os
 from datetime import timedelta
 from typing import Union, List, Set, Dict
+
+from PIL import Image, ImageDraw
 
 import voluptuous as vol
 
@@ -26,6 +29,7 @@ from homeassistant.components.image_processing import (
     CONF_SOURCE,
     CONF_ENTITY_ID,
     CONF_NAME,
+    draw_box,
 )
 
 
@@ -39,6 +43,7 @@ CONF_TARGET = "target"
 DEFAULT_TARGET = "person"
 EVENT_OBJECT_DETECTED = "image_processing.object_detected"
 EVENT_FILE_SAVED = "image_processing.file_saved"
+FILE = "file"
 OBJECT = "object"
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
@@ -117,6 +122,10 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
         ["https://www.googleapis.com/auth/cloud-platform"]
     )
     client = vision.ImageAnnotatorClient(credentials=scoped_credentials)
+
+    save_file_folder = config.get(CONF_SAVE_FILE_FOLDER)
+    if save_file_folder:
+        save_file_folder = os.path.join(save_file_folder, "")  # If no trailing / add it
     entities = []
     for camera in config[CONF_SOURCE]:
         entities.append(
@@ -124,7 +133,7 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
                 config.get(CONF_TARGET),
                 client,
                 config.get(ATTR_CONFIDENCE),
-                config.get(CONF_SAVE_FILE_FOLDER),
+                save_file_folder,
                 camera[CONF_ENTITY_ID],
                 camera.get(CONF_NAME),
             )
@@ -173,9 +182,24 @@ class Gvision(ImageProcessingEntity):
             self._last_detection = dt_util.now()
 
         if hasattr(self, "_save_file_folder") and self._state > 0:
-            self.save_image(
-                image, self._predictions, self._target, self._save_file_folder
-            )
+            self.save_image(image, objects, self._target, self._save_file_folder)
+
+    def save_image(self, image, objects, target, directory):
+        """Save a timestamped image with bounding boxes around targets."""
+
+        img = Image.open(io.BytesIO(bytearray(image))).convert("RGB")
+        draw = ImageDraw.Draw(img)
+
+        for obj in objects:
+            obj_confidence = format_confidence(obj.score)
+            if obj_confidence > self._confidence:
+                if obj.name.lower() == target and obj_confidence >= self._confidence:
+                    box = get_box(obj.bounding_poly.normalized_vertices)
+                    draw_box(draw, box, img.width, img.height)
+
+        latest_save_path = directory + "google_vision_latest_{}.jpg".format(target)
+        img.save(latest_save_path)
+        self.fire_saved_file_event(latest_save_path)
 
     def fire_object_detected_events(self, objects, confidence_threshold):
         """Fire event if detection above confidence threshold."""
@@ -191,6 +215,12 @@ class Gvision(ImageProcessingEntity):
                         ATTR_CONFIDENCE: obj_confidence,
                     },
                 )
+
+    def fire_saved_file_event(self, save_path):
+        """Fire event when saving a file"""
+        self.hass.bus.fire(
+            EVENT_FILE_SAVED, {ATTR_ENTITY_ID: self.entity_id, FILE: save_path}
+        )
 
     @property
     def camera_entity(self):

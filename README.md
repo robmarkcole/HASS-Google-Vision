@@ -1,5 +1,5 @@
 # HASS-Google-Vision
-Home Assistant custom component for image processing with Google Vision. 
+[Home Assistant](https://www.home-assistant.io/) custom component for image processing with Google Vision. 
 
 Detect objects in camera feeds using Google Vision. [Upload a photo to try out the processing here.](https://cloud.google.com/vision/)(see the `Objects` tab).  The component adds an image_processing entity where the state of the entity is the total number of `target` objects that are above a confidence threshold which has a default value of 80%. The time of the last detection of the target object is in the `last_detection` attribute. The type and number of objects (of any confidence) is listed in the `summary` attribute. If `save_file_folder` is configured an annotated image with the name `google_vision_latest_{target}.jpg` is saved and over-written on each new detection of the target. This image shows the bounding box around detected targets and can be displayed on the Home Assistant front end using a local_file camera. An event `image_processing.object_detected` is fired for each object detected and can be used to track multiple object types, for example incrementing a [counter](https://www.home-assistant.io/integrations/counter/), or kicking off an automation.
 
