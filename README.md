@@ -59,7 +59,7 @@ An example automation using the `image_processing.object_detected` event is give
   - data_template:
       title: "New object detection"
       message: "{{ trigger.event.data.object }} with confidence {{ trigger.event.data.confidence }}"
-    service: notify.pushbullet
+    service: telegram_bot.send_message
   alias: Object detection automation
   condition: []
   id: '1120092824622'
