@@ -244,8 +244,6 @@ class Gvision(ImageProcessingEntity):
         attr = {}
         attr["target"] = self._target
         attr["summary"] = self._summary
-        attr["confidence"] = self._confidence
-        attr["_save_file_folder"] = self._save_file_folder
         if self._last_detection:
             attr[
                 "last_{}_detection".format(self._target)
