@@ -2,36 +2,30 @@
 Perform image pgoressing with Google Vision
 """
 import base64
+import io
 import json
 import logging
-import time
-import io
 import os
+import time
 from datetime import timedelta
-from typing import Union, List, Set, Dict
-
-from PIL import Image, ImageDraw
-
-import voluptuous as vol
+from typing import Dict, List, Set, Union
 
 from google.cloud import vision
 from google.cloud.vision import types
 from google.oauth2 import service_account
+from PIL import Image, ImageDraw
 
+import homeassistant.helpers.config_validation as cv
 import homeassistant.util.dt as dt_util
+import voluptuous as vol
+from homeassistant.components.image_processing import (ATTR_CONFIDENCE,
+                                                       CONF_ENTITY_ID,
+                                                       CONF_NAME, CONF_SOURCE,
+                                                       PLATFORM_SCHEMA,
+                                                       ImageProcessingEntity,
+                                                       draw_box)
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import split_entity_id
-import homeassistant.helpers.config_validation as cv
-from homeassistant.components.image_processing import (
-    PLATFORM_SCHEMA,
-    ImageProcessingEntity,
-    ATTR_CONFIDENCE,
-    CONF_SOURCE,
-    CONF_ENTITY_ID,
-    CONF_NAME,
-    draw_box,
-)
-
 
 _LOGGER = logging.getLogger(__name__)
 
