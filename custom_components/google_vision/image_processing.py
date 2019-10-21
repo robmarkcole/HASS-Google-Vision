@@ -1,5 +1,5 @@
 """
-Perform image pgoressing with Google Vision
+Perform image processing with Google Vision
 """
 import base64
 import json
@@ -14,9 +14,7 @@ from PIL import Image, ImageDraw
 
 import voluptuous as vol
 
-from google.cloud import vision
-from google.cloud.vision import types
-from google.oauth2 import service_account
+import gvision.core as gv
 
 import homeassistant.util.dt as dt_util
 from homeassistant.const import ATTR_ENTITY_ID
@@ -55,83 +53,19 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 )
 
 
-def format_confidence(confidence: Union[str, float]) -> float:
-    """Takes a confidence from the API like 
-       0.55623 and returns 55.6 (%).
-    """
-    return round(float(confidence) * 100, 1)
-
-
-def get_box(normalized_vertices: List):
-    """
-    Return the relative bounxing box coordinates
-    defined by the tuple (y_min, x_min, y_max, x_max)
-    where the coordinates are floats in the range [0.0, 1.0] and
-    relative to the width and height of the image.
-    """
-    y = []
-    x = []
-    for box in normalized_vertices:
-        y.append(box.y)
-        x.append(box.x)
-
-    box = [min(set(y)), min(set(x)), max(set(y)), max(set(x))]
-
-    rounding_decimals = 5
-    box = [round(coord, rounding_decimals) for coord in box]
-    return box
-
-
-def get_objects(objects: List[types.LocalizedObjectAnnotation]) -> List[str]:
-    """
-    Get a list of the unique objects predicted.
-    """
-    labels = [obj.name.lower() for obj in objects]
-    return list(set(labels))
-
-
-def get_object_confidences(objects: List[types.LocalizedObjectAnnotation], target: str):
-    """
-    Return the list of confidences of instances of target label.
-    """
-    confidences = [
-        format_confidence(obj.score) for obj in objects if obj.name.lower() == target
-    ]
-    return confidences
-
-
-def get_objects_summary(objects: List[types.LocalizedObjectAnnotation]):
-    """
-    Get a summary of the objects detected.
-    """
-    objects_labels = get_objects(objects)
-    return {
-        target: len(get_object_confidences(objects, target))
-        for target in objects_labels
-    }
-
-
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Set up platform."""
-
-    # Instantiates a client
-    credentials = service_account.Credentials.from_service_account_file(
-        config.get(CONF_API_KEY_FILE)
-    )
-    scoped_credentials = credentials.with_scopes(
-        ["https://www.googleapis.com/auth/cloud-platform"]
-    )
-    client = vision.ImageAnnotatorClient(credentials=scoped_credentials)
 
     save_file_folder = config.get(CONF_SAVE_FILE_FOLDER)
     if save_file_folder:
         save_file_folder = os.path.join(save_file_folder, "")  # If no trailing / add it
+
     entities = []
     for camera in config[CONF_SOURCE]:
         entities.append(
             Gvision(
                 config.get(CONF_TARGET),
-                client,
+                config.get(CONF_API_KEY_FILE),
                 config.get(ATTR_CONFIDENCE),
                 save_file_folder,
                 camera[CONF_ENTITY_ID],
@@ -145,11 +79,11 @@ class Gvision(ImageProcessingEntity):
     """Perform object recognition with Google Vision."""
 
     def __init__(
-        self, target, client, confidence, save_file_folder, camera_entity, name=None
+        self, target, api_key_file, confidence, save_file_folder, camera_entity, name=None
     ):
         """Init with the client."""
         self._target = target
-        self._client = client
+        self._api = gv.Vision(api_key_file)
         self._confidence = confidence  # the confidence threshold
         if name:  # Since name is optional.
             self._name = name
@@ -168,14 +102,14 @@ class Gvision(ImageProcessingEntity):
         self._state = None
         self._summary = {}
 
-        response = self._client.object_localization(image=types.Image(content=image))
+        response = self._api.object_localization(image)
         objects = response.localized_object_annotations
 
         if not len(objects) > 0:
             return
 
-        self._state = len(get_object_confidences(objects, self._target))
-        self._summary = get_objects_summary(objects)
+        self._state = len(gv.get_object_confidences(objects, self._target))
+        self._summary = gv.get_objects_summary(objects)
         self.fire_object_detected_events(objects, self._confidence)
 
         if self._state > 0:
@@ -191,10 +125,10 @@ class Gvision(ImageProcessingEntity):
         draw = ImageDraw.Draw(img)
 
         for obj in objects:
-            obj_confidence = format_confidence(obj.score)
+            obj_confidence = gv.format_confidence(obj.score)
             if obj_confidence > self._confidence:
                 if obj.name.lower() == target and obj_confidence >= self._confidence:
-                    box = get_box(obj.bounding_poly.normalized_vertices)
+                    box = gv.get_box(obj.bounding_poly.normalized_vertices)
                     draw_box(draw, box, img.width, img.height)
 
         latest_save_path = directory + "google_vision_latest_{}.jpg".format(target)
@@ -204,7 +138,7 @@ class Gvision(ImageProcessingEntity):
         """Fire event if detection above confidence threshold."""
 
         for obj in objects:
-            obj_confidence = format_confidence(obj.score)
+            obj_confidence = gv.format_confidence(obj.score)
             if obj_confidence > confidence_threshold:
                 self.hass.bus.fire(
                     EVENT_OBJECT_DETECTED,
