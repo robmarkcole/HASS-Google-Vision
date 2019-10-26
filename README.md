@@ -22,7 +22,7 @@ Place the `custom_components` folder in your configuration directory (or add its
 ```yaml
 image_processing:
   - platform: google_vision
-    api_key_file: /Users/robin/.homeassistant/Google_API_key.json
+    api_key_file: /config/Google_API_key.json
     source:
       - entity_id: camera.local_file
 ```
@@ -43,6 +43,29 @@ camera:
   - platform: local_file
     file_path: /config/www/google_vision/google_vision_latest_person.jpg
     name: google_vision_latest_person
+```
+
+## Automation to send the `google_vision_latest_{target}.jpg` file in a notification
+Configure the [folder_watcher](https://www.home-assistant.io/integrations/folder_watcher/) in `configuration.yaml`, e.g.:
+
+```yaml
+folder_watcher:
+  - folder: /config/www
+```
+Then in `automations.yaml` we will send a photo when `google_vision_latest_{target}.jpg` is modified:
+
+```yaml
+- id: '1527837198169'
+  alias: New detection
+  trigger:
+    platform: event
+    event_type: folder_watcher
+    event_data:
+      file : google_vision_latest_person.jpg
+  action:
+    service: telegram_bot.send_photo
+    data:
+      file: /config/www/google_vision_images/google_vision_latest_person.jpg
 ```
 
 #### Event `image_processing.object_detected`
