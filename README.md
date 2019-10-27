@@ -53,7 +53,7 @@ Configure the [folder_watcher](https://www.home-assistant.io/integrations/folder
 folder_watcher:
   - folder: /config/www/
 ```
-Then in `automations.yaml` we will send a photo when `google_vision_latest_{target}.jpg` is modified:
+Then in `automations.yaml` we will send a photo when `google_vision_latest_{target}.jpg` is modified. Note that I [have included](https://community.home-assistant.io/t/limit-automation-triggering/14915) a couple of delays which disable the automation as the `folder_watcher` events can fire multiple times duing the image saving process:
 
 ```yaml
 - id: '1527837198169'
@@ -64,9 +64,19 @@ Then in `automations.yaml` we will send a photo when `google_vision_latest_{targ
     event_data:
       file : google_vision_latest_person.jpg
   action:
-    service: telegram_bot.send_photo
-    data:
-      file: /config/www/google_vision_latest_person.jpg
+    - service: automation.turn_off
+      entity_id: automation.new_detection
+      ## Make sure file is saved
+    - delay:
+        seconds: 1
+    - service: telegram_bot.send_photo
+      data:
+        file: /config/www/google_vision_latest_person.jpg
+      ## Throttle notifications
+    - delay:
+        seconds: 2
+    - service: automation.turn_on
+      entity_id: automation.new_detection
 ```
 
 #### Event `image_processing.object_detected`
