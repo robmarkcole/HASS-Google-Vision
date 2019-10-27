@@ -2,7 +2,7 @@
         "domain": "google_vision",
         "name": "Google Vision object detection",
         "documentation": "https://github.com/robmarkcole/HASS-Google-Vision",
-        "requirements": ["simple-google-vision==0.2"],
+        "requirements": ["simple-google-vision==0.3"],
         "dependencies": [],
         "codeowners": ["@robmarkcole"]
 }
