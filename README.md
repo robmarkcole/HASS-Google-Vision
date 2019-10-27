@@ -23,6 +23,7 @@ Place the `custom_components` folder in your configuration directory (or add its
 image_processing:
   - platform: google_vision
     api_key_file: /config/Google_API_key.json
+    save_file_folder: /config/www/
     source:
       - entity_id: camera.local_file
 ```
@@ -36,21 +37,21 @@ Configuration variables:
 - **source**: Must be a camera.
 
 ## Displaying the `google_vision_latest_{target}.jpg` file
-It easy to display the google_vision_latest_{target}.jpg image with a [local_file](https://www.home-assistant.io/integrations/local_file) camera. An example configuration is:
+It easy to display the `google_vision_latest_{target}.jpg` image with a [local_file](https://www.home-assistant.io/integrations/local_file) camera. An example configuration is:
 
-```
+```yaml
 camera:
   - platform: local_file
-    file_path: /config/www/google_vision/google_vision_latest_person.jpg
+    file_path: /config/www/google_vision_latest_person.jpg
     name: google_vision_latest_person
 ```
 
-## Automation to send the `google_vision_latest_{target}.jpg` file in a notification
+## Automation to send the `google_vision_latest_{target}.jpg` file
 Configure the [folder_watcher](https://www.home-assistant.io/integrations/folder_watcher/) in `configuration.yaml`, e.g.:
 
 ```yaml
 folder_watcher:
-  - folder: /config/www
+  - folder: /config/www/
 ```
 Then in `automations.yaml` we will send a photo when `google_vision_latest_{target}.jpg` is modified:
 
@@ -65,7 +66,7 @@ Then in `automations.yaml` we will send a photo when `google_vision_latest_{targ
   action:
     service: telegram_bot.send_photo
     data:
-      file: /config/www/google_vision_images/google_vision_latest_person.jpg
+      file: /config/www/google_vision_latest_person.jpg
 ```
 
 #### Event `image_processing.object_detected`
