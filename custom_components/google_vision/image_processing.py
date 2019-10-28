@@ -1,35 +1,26 @@
-"""
-Perform image processing with Google Vision
-"""
-import base64
-import json
-import logging
-import time
-import io
-import os
+"""Perform image processing with Google Vision."""
 from datetime import timedelta
-from typing import Union, List, Set, Dict
+import io
+import logging
+import os
 
 from PIL import Image, ImageDraw
-
+import gvision.core as gv
 import voluptuous as vol
 
-import gvision.core as gv
-
-import homeassistant.util.dt as dt_util
+from homeassistant.components.image_processing import (
+    ATTR_CONFIDENCE,
+    CONF_ENTITY_ID,
+    CONF_NAME,
+    CONF_SOURCE,
+    PLATFORM_SCHEMA,
+    ImageProcessingEntity,
+    draw_box,
+)
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import split_entity_id
 import homeassistant.helpers.config_validation as cv
-from homeassistant.components.image_processing import (
-    PLATFORM_SCHEMA,
-    ImageProcessingEntity,
-    ATTR_CONFIDENCE,
-    CONF_SOURCE,
-    CONF_ENTITY_ID,
-    CONF_NAME,
-    draw_box,
-)
-
+import homeassistant.util.dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,7 +70,13 @@ class Gvision(ImageProcessingEntity):
     """Perform object recognition with Google Vision."""
 
     def __init__(
-        self, target, api_key_file, confidence, save_file_folder, camera_entity, name=None
+        self,
+        target,
+        api_key_file,
+        confidence,
+        save_file_folder,
+        camera_entity,
+        name=None,
     ):
         """Init with the client."""
         self._target = target
@@ -168,7 +165,7 @@ class Gvision(ImageProcessingEntity):
     def unit_of_measurement(self):
         """Return the unit of measurement."""
         target = self._target
-        if self._state != None and self._state > 1:
+        if self._state is not None and self._state > 1:
             target += "s"
         return target
 
@@ -178,7 +175,7 @@ class Gvision(ImageProcessingEntity):
         attr = {}
         attr["target"] = self._target
         attr["summary"] = self._summary
-        if self._last_detection:
+        if self._last_detection is not None:
             attr[
                 "last_{}_detection".format(self._target)
             ] = self._last_detection.strftime("%Y-%m-%d %H:%M:%S")
