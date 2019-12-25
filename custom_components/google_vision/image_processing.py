@@ -16,6 +16,7 @@ import voluptuous as vol
 
 import gvision.core as gv
 
+from homeassistant.util.pil import draw_box
 import homeassistant.util.dt as dt_util
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import split_entity_id
@@ -27,7 +28,6 @@ from homeassistant.components.image_processing import (
     CONF_SOURCE,
     CONF_ENTITY_ID,
     CONF_NAME,
-    draw_box,
 )
 
 
