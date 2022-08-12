@@ -3,6 +3,7 @@
         "name": "Google Vision object detection",
         "documentation": "https://github.com/robmarkcole/HASS-Google-Vision",
         "requirements": ["simple-google-vision==0.3"],
+        "version": "1.0.0",
         "dependencies": [],
         "codeowners": ["@robmarkcole"]
 }
